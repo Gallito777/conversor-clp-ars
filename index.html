@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Conversor CLP ↔ ARS</title>
+
+<style>
+*{box-sizing:border-box;}
+
+body{
+margin:0;
+font-family:"Segoe UI",Arial,sans-serif;
+background:linear-gradient(135deg,#eaf2f8,#dce7f2);
+color:#1f2937;
+min-height:100vh;
+display:flex;
+align-items:center;
+justify-content:center;
+padding:20px;
+}
+
+.app{
+width:100%;
+max-width:430px;
+background:#f8fafc;
+border:1px solid #d1d9e6;
+border-radius:20px;
+box-shadow:0 20px 45px rgba(15,23,42,0.12);
+overflow:hidden;
+}
+
+.header{
+background:linear-gradient(135deg,#5b7c99,#7fb3d5);
+color:white;
+padding:24px 24px 18px;
+}
+
+.header h1{
+margin:0;
+font-size:24px;
+font-weight:700;
+letter-spacing:.3px;
+}
+
+.content{padding:22px;}
+
+.status-box{
+background:#eef4f8;
+border:1px solid #d3dee8;
+border-radius:14px;
+padding:14px;
+margin-bottom:18px;
+}
+
+.status-line{
+margin:4px 0;
+font-size:14px;
+color:#475569;
+}
+
+.status-line strong{color:#1e3a5f;}
+
+.field{margin-bottom:16px;}
+
+label{
+display:block;
+margin-bottom:8px;
+font-size:14px;
+font-weight:600;
+color:#334155;
+}
+
+input,select{
+width:100%;
+padding:13px 14px;
+border-radius:12px;
+border:1px solid #cbd5e1;
+background:#ffffff;
+font-size:16px;
+color:#0f172a;
+outline:none;
+transition:.2s ease;
+}
+
+input:focus,select:focus{
+border-color:#7fb3d5;
+box-shadow:0 0 0 4px rgba(127,179,213,.18);
+}
+
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:12px;
+}
+
+button{
+width:100%;
+border:none;
+border-radius:12px;
+padding:14px 16px;
+font-size:15px;
+font-weight:700;
+cursor:pointer;
+transition:.2s ease;
+}
+
+.btn-primary{
+background:linear-gradient(135deg,#6b7280,#7fb3d5);
+color:white;
+margin-top:8px;
+}
+
+.btn-primary:hover{
+transform:translateY(-1px);
+box-shadow:0 10px 20px rgba(127,179,213,.25);
+}
+
+.btn-secondary{
+background:#e5edf5;
+color:#334155;
+border:1px solid #c7d4e2;
+}
+
+.btn-secondary:hover{background:#dde7f0;}
+
+.results{
+margin-top:18px;
+display:grid;
+gap:12px;
+}
+
+.card{
+background:white;
+border:1px solid #d8e2ec;
+border-radius:14px;
+padding:16px;
+}
+
+.card-title{
+font-size:13px;
+text-transform:uppercase;
+letter-spacing:.6px;
+color:#64748b;
+margin-bottom:8px;
+font-weight:700;
+}
+
+.card-value{
+font-size:26px;
+font-weight:800;
+color:#0f172a;
+word-break:break-word;
+}
+
+@media(max-width:480px){
+.grid{grid-template-columns:1fr;}
+.header h1{font-size:21px;}
+.card-value{font-size:22px;}
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<div class="header">
+<h1>Conversor CLP ↔ ARS</h1>
+</div>
+
+<div class="content">
+
+<div class="status-box">
+<div class="status-line"><strong>Fuente ARS/USD:</strong> Dólar blue (Argentina)</div>
+<div class="status-line"><strong>Fuente CLP/USD:</strong> Dólar observado (Chile)</div>
+<div class="status-line" id="rateText">Cotización actual: cargando...</div>
+<div class="status-line" id="updatedText">Última actualización: --</div>
+</div>
+
+<div class="field">
+<label for="amount">Monto</label>
+<input type="number" id="amount" step="0.01"/>
+</div>
+
+<div class="field">
+<label for="direction">Tipo de conversión</label>
+<select id="direction">
+<option value="clp_ars">CLP → ARS</option>
+<option value="ars_clp">ARS → CLP</option>
+</select>
+</div>
+
+<div class="grid">
+<button class="btn-secondary" onclick="actualizarCotizacion()">Actualizar cotización</button>
+<button class="btn-primary" onclick="convertir()">Calcular</button>
+</div>
+
+<div class="results">
+
+<div class="card">
+<div class="card-title">Resultado base</div>
+<div class="card-value" id="baseResult">--</div>
+</div>
+
+<div class="card">
+<div class="card-title">Resultado +30%</div>
+<div class="card-value" id="extraResult">--</div>
+</div>
+
+</div>
+
+</div>
+</div>
+
+<script>
+
+let rate=null;
+
+function formatNumber(value){
+return new Intl.NumberFormat("es-AR",{minimumFractionDigits:2,maximumFractionDigits:2}).format(value);
+}
+
+function formatDateTime(date){
+return new Intl.DateTimeFormat("es-AR",{dateStyle:"short",timeStyle:"medium"}).format(date);
+}
+
+function saveRate(rateValue){
+localStorage.setItem("clp_ars_rate",String(rateValue));
+localStorage.setItem("clp_ars_updated",new Date().toISOString());
+}
+
+function loadSavedRate(){
+
+const savedRate=localStorage.getItem("clp_ars_rate");
+const savedUpdated=localStorage.getItem("clp_ars_updated");
+
+if(savedRate){
+rate=parseFloat(savedRate);
+document.getElementById("rateText").textContent=`Cotización guardada: 1 CLP = ${formatNumber(rate)} ARS`;
+}
+
+if(savedUpdated){
+document.getElementById("updatedText").textContent=`Última actualización: ${formatDateTime(new Date(savedUpdated))}`;
+}
+
+}
+
+async function actualizarCotizacion(){
+
+document.getElementById("rateText").textContent="Cotización actual: actualizando...";
+
+try{
+
+const arsResponse=await fetch("https://dolarapi.com/v1/dolares/blue");
+const arsData=await arsResponse.json();
+
+const clpResponse=await fetch("https://mindicador.cl/api/dolar");
+const clpData=await clpResponse.json();
+
+const arsPorUsd=parseFloat(arsData.venta);
+const clpPorUsd=parseFloat(clpData.serie[0].valor);
+
+rate=arsPorUsd/clpPorUsd;
+
+saveRate(rate);
+
+document.getElementById("rateText").textContent=`Cotización actual: 1 CLP = ${formatNumber(rate)} ARS`;
+document.getElementById("updatedText").textContent=`Última actualización: ${formatDateTime(new Date())}`;
+
+}catch(error){
+
+loadSavedRate();
+
+}
+
+}
+
+function convertir(){
+
+const amount=parseFloat(document.getElementById("amount").value);
+const direction=document.getElementById("direction").value;
+
+if(!rate){
+alert("Primero cargá una cotización válida.");
+return;
+}
+
+if(isNaN(amount)||amount<=0){
+alert("Ingresá un monto válido.");
+return;
+}
+
+let result;
+
+if(direction==="clp_ars"){
+
+result=amount*rate;
+
+document.getElementById("baseResult").textContent=`${formatNumber(result)} ARS`;
+document.getElementById("extraResult").textContent=`${formatNumber(result*1.30)} ARS`;
+
+}else{
+
+result=amount/rate;
+
+document.getElementById("baseResult").textContent=`${formatNumber(result)} CLP`;
+document.getElementById("extraResult").textContent=`${formatNumber(result*1.30)} CLP`;
+
+}
+
+}
+
+loadSavedRate();
+actualizarCotizacion();
+
+</script>
+
+</body>
+</html>
